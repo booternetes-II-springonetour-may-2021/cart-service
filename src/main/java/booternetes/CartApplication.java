@@ -1,31 +1,35 @@
 package booternetes;
 
+import io.r2dbc.spi.ConnectionFactory;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.SpringApplication;
-import org.springframework.boot.actuate.autoconfigure.metrics.MetricsProperties;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.cloud.context.scope.refresh.RefreshScopeRefreshedEvent;
-import org.springframework.context.ApplicationEvent;
-import org.springframework.context.ApplicationEventPublisher;
-import org.springframework.context.ApplicationListener;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.event.EventListener;
 import org.springframework.core.env.Environment;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.data.annotation.Id;
+import org.springframework.data.relational.core.mapping.Table;
 import org.springframework.data.repository.reactive.ReactiveCrudRepository;
+import org.springframework.r2dbc.connection.init.CompositeDatabasePopulator;
+import org.springframework.r2dbc.connection.init.ConnectionFactoryInitializer;
+import org.springframework.r2dbc.connection.init.ResourceDatabasePopulator;
 import org.springframework.stereotype.Component;
-import org.springframework.util.Assert;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.util.Arrays;
-import java.util.Set;
-import java.util.concurrent.ConcurrentSkipListSet;
-import java.util.stream.Collectors;
+import java.util.Objects;
 
 @SpringBootApplication
 public class CartApplication {
@@ -35,113 +39,110 @@ public class CartApplication {
 	}
 
 	@Bean
-	WebClient http(WebClient.Builder builder) {
+	ConnectionFactoryInitializer databaseInitializer(ConnectionFactory cf) {
+		var populator = new CompositeDatabasePopulator(
+			new ResourceDatabasePopulator(new ClassPathResource("schema.sql")),
+			new ResourceDatabasePopulator(new ClassPathResource("data.sql"))
+		);
+
+		var initializer = new ConnectionFactoryInitializer();
+		initializer.setConnectionFactory(cf);
+		initializer.setDatabasePopulator(populator);
+		return initializer;
+	}
+
+	@Bean
+	WebClient webClient(WebClient.Builder builder) {
 		return builder.build();
 	}
 }
 
 
-/// orders
+/**
+	* How are you? i want to demonstrate reconnecting to a R2DBC ConnectionFactory if the DB goes down (as it might in a Kubernetes cluster)
+	* What's the best approach for this? i gather r2dbc-pool might support something like this? is there an AOP retrying ConnectionFactory BeanPostProcessor to write? im not sure what id do here (edited)
+	* Hi. I’m good my friend. Using R2DBC Pool is the way to go. If you see anything hanging let me know so we can fix things in the pool or drivers. Make sure to tune timeouts (connection creation acquisition timeouts) as you’d wait otherwise forever.
+	*/
+@Component
+@RequiredArgsConstructor
+class CafeInitializer {
+
+	private final Environment env;
+	private final CoffeeRepository repo;
+
+	@EventListener({ApplicationReadyEvent.class, RefreshScopeRefreshedEvent.class})
+	public	void refill() {
+		var coffees = env.getProperty("coffees");
+		var deleteAll = repo.deleteAll();
+		var writes = repo.saveAll(Flux.fromStream(Arrays.stream(Objects.requireNonNull(coffees).split(";")).map(name -> new Coffee(null, name.trim()))));
+		deleteAll.thenMany(writes).subscribe(cafe -> System.out.println("adding " + cafe + '.'));
+	}
+}
+
+interface CoffeeRepository extends ReactiveCrudRepository<Coffee, Integer> {
+}
+
 interface OrderRepository extends ReactiveCrudRepository<Order, Integer> {
 }
 
 @Data
+@Table("cafe")
+@AllArgsConstructor
+@NoArgsConstructor
+class Coffee {
+	@Id
+	private Integer id;
+	private String name;
+}
+
+
+@Data
+@Table("cafe_orders")
 @AllArgsConstructor
 @NoArgsConstructor
 class Order {
-
 	@Id
 	private Integer id;
-	private Coffee coffee;
+	private String coffee;
 	private String username;
 	private int quantity;
 }
 
-
-class OrderPlacedEvent extends ApplicationEvent {
-
-	@Override
-	public Order getSource() {
-		return (Order) super.getSource();
-	}
-
-	OrderPlacedEvent(Order source) {
-		super(source);
-	}
-}
-
-@Component
-@RequiredArgsConstructor
-class PointsSynchronizer implements ApplicationListener<OrderPlacedEvent> {
-
-	private final WebClient http;
-
-	@Override
-	public void onApplicationEvent(OrderPlacedEvent orderMadeEvent) {
-		this.http
-			.post()
-			.uri("http://localhost:8081/orders")
-			.body(orderMadeEvent.getSource(), Order.class)
-			.retrieve()
-			.bodyToMono(String.class)
-			.subscribe(order ->
-				System.out.println("posted the order # " + order)
-			);
-	}
-}
 
 @RestController
 @RequiredArgsConstructor
 class OrderRestController {
 
 	private final OrderRepository orderRepository;
-
-	private final ApplicationEventPublisher publisher;
+	private final WebClient http;
 
 	@PostMapping("/cart/orders")
 	Mono<Order> placeOrder(@RequestBody Order order) {
-		return this.orderRepository.save(order)
-			.doOnNext(o -> this.publisher.publishEvent(new OrderPlacedEvent(o)));
+		return this.orderRepository.save(order).doOnNext(this::emit);
 	}
-}
 
-/// coffee
-@Data
-@RequiredArgsConstructor
-class Coffee implements Comparable<Coffee> {
-
-	private final String name;
-
-	@Override
-	public int compareTo(Coffee o) {
-		return this.name.compareTo(o.name);
+	private void emit(Order order) {
+		this.http
+			.post()
+			.uri("http://localhost:8081/dataflow")
+			.body(Mono.just (order )  , Order.class )
+			.retrieve()
+			.bodyToMono(String.class)
+			.subscribe(json ->
+				System.out.println("posted the order # " + json)
+			);
 	}
 }
 
 @RestController
 @RequiredArgsConstructor
-class CoffeeRestController implements ApplicationListener<RefreshScopeRefreshedEvent> {
+class CoffeeRestController {
 
-	private final Environment environment;
-	private final Set<Coffee> coffees = new ConcurrentSkipListSet<>();
-	private final Object monitor = new Object();
+	private final CoffeeRepository cafe;
 
 	@GetMapping("/cart/coffees")
 	Flux<Coffee> get() {
-		synchronized (this.monitor) {
-			return Flux.fromIterable(this.coffees);
-		}
-	}
-
-	@Override
-	public void onApplicationEvent(RefreshScopeRefreshedEvent refreshed) {
-		var coffees = this.environment.getProperty("coffees");
-		Assert.hasText(coffees, () -> "the coffees configuration string must be non-empty");
-		var update = Arrays.stream(coffees.split(";")).map(Coffee::new).collect(Collectors.toSet());
-		synchronized (this.monitor) {
-			this.coffees.clear();
-			this.coffees.addAll(update);
-		}
+		return cafe.findAll();
 	}
 
 }
