@@ -57,12 +57,6 @@ public class CartApplication {
 	}
 }
 
-
-/**
-	* How are you? i want to demonstrate reconnecting to a R2DBC ConnectionFactory if the DB goes down (as it might in a Kubernetes cluster)
-	* What's the best approach for this? i gather r2dbc-pool might support something like this? is there an AOP retrying ConnectionFactory BeanPostProcessor to write? im not sure what id do here (edited)
-	* Hi. I’m good my friend. Using R2DBC Pool is the way to go. If you see anything hanging let me know so we can fix things in the pool or drivers. Make sure to tune timeouts (connection creation acquisition timeouts) as you’d wait otherwise forever.
-	*/
 @Component
 @RequiredArgsConstructor
 class CafeInitializer {
@@ -71,7 +65,7 @@ class CafeInitializer {
 	private final CoffeeRepository repo;
 
 	@EventListener({ApplicationReadyEvent.class, RefreshScopeRefreshedEvent.class})
-	public	void refill() {
+	public void refill() {
 		var coffees = env.getProperty("coffees");
 		var deleteAll = repo.deleteAll();
 		var writes = repo.saveAll(Flux.fromStream(Arrays.stream(Objects.requireNonNull(coffees).split(";")).map(name -> new Coffee(null, name.trim()))));
@@ -125,7 +119,7 @@ class OrderRestController {
 		this.http
 			.post()
 			.uri("http://localhost:8081/dataflow")
-			.body(Mono.just (order )  , Order.class )
+			.body(Mono.just(order), Order.class)
 			.retrieve()
 			.bodyToMono(String.class)
 			.subscribe(json ->
