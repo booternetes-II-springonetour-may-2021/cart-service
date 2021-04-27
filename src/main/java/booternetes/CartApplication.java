@@ -8,6 +8,7 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
@@ -35,6 +36,7 @@ import reactor.util.retry.Retry;
 
 import java.time.Duration;
 import java.util.Arrays;
+import java.util.Map;
 import java.util.Objects;
 
 
@@ -76,7 +78,7 @@ class CafeInitializer {
 		RefreshScopeRefreshedEvent.class
 	})
 	public void refill() {
-		var coffees = env.getProperty("coffees");
+		var coffees = env.getProperty("cart.coffees");
 		var deleteAll = repo.deleteAll();
 		var coffeeObjects = Flux
 			.fromStream(Arrays.stream(Objects.requireNonNull(coffees).split(";")).map(name -> new Coffee(null, name.trim())));
@@ -116,8 +118,9 @@ class Order {
 
 
 @RestController
-@RequiredArgsConstructor
 class OrderRestController {
+
+	private final String cartPointsSinkUrl;
 
 	private final CircuitBreaker circuitBreaker = CircuitBreaker.of("dataflow-cb", CircuitBreakerConfig
 		.custom()//
@@ -128,28 +131,39 @@ class OrderRestController {
 		.permittedNumberOfCallsInHalfOpenState(2) //
 		.build()
 	);
-
 	private final OrderRepository orderRepository;
-
 	private final WebClient http;
 
-	@PostMapping("/cart/orders")
-	Mono<Order> placeOrder(@RequestBody Order order) {
-		return this.orderRepository.save(order).doOnNext(this::emit);
+	OrderRestController(@Value("${cart.points-sink-url}") String cartPointsSinkUrl,
+																					OrderRepository orderRepository,
+																					WebClient http) {
+		this.cartPointsSinkUrl = cartPointsSinkUrl;
+		this.orderRepository = orderRepository;
+		this.http = http;
 	}
 
-	private void emit(Order order) {
-		this.http
+	@PostMapping("/cart/orders")
+	Mono<Void> placeOrder(@RequestBody Order order) {
+		return this.orderRepository
+			.save(order)
+			.flatMap(this::send)
+			.doOnNext(System.out::println)
+			.then();
+	}
+
+	// must send: { amount: <int>, username : <string> }
+	private Mono<String> send(Order order) {
+		var payload =
+			Map.of("username", order.getUsername(), "amount", order.getQuantity());
+		return this.http
 			.post()
-			.uri("http://localhost:8081/dataflow")
-			.body(Mono.just(order), Order.class)
+			.uri(this.cartPointsSinkUrl)
+			.body(Mono.just(payload), Map.class)
 			.retrieve()
 			.bodyToMono(String.class)
 			.retryWhen(Retry.backoff(10, Duration.ofSeconds(1)))
-			.transformDeferred(CircuitBreakerOperator.of(this.circuitBreaker))
-			.subscribe(json ->
-				System.out.println("posted the order # " + json)
-			);
+			.transformDeferred(CircuitBreakerOperator.of(this.circuitBreaker));
+
 	}
 }
 

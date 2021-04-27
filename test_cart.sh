@@ -3,9 +3,6 @@
 def_host=localhost:8080
 my_host=${1:-${def_host}}
 
-echo the host is "$my_host"
-
-
 echo "what coffees are on order?..."
 curl http://${my_host}/cart/coffees
 

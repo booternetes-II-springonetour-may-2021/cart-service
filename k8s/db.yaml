@@ -1,0 +1,58 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cart-mysql-deployment
+  labels:
+    app: cart-mysql
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cart-mysql
+  template:
+    metadata:
+      labels:
+        app: cart-mysql
+    spec:
+      containers:
+        - name: cart-mysql
+          image: mysql/mysql-server:latest
+          ports:
+            - containerPort: 3306
+          volumeMounts:
+            - mountPath: "/var/lib/mysql"
+              subPath: "mysql"
+              name: cart-mysql-data
+          envFrom:
+            - secretRef:
+                name: cart-mysql-secrets
+      volumes:
+        - name: cart-mysql-data
+          persistentVolumeClaim:
+            claimName: cart-mysql-data-disk
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: cart-mysql-data-disk
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cart-mysql-service
+  namespace: default
+spec:
+  ports:
+    - port: 3306
+      protocol: TCP
+      targetPort: 3306
+  selector:
+    app: cart-mysql
+  type: ClusterIP
