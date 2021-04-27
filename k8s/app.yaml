@@ -7,14 +7,14 @@ metadata:
 apiVersion: v1
 kind: Service
 metadata:
-  name: points-service
+  name: cart-service
   namespace: bk
   labels:
-    app: points
+    app: cart
 spec:
   type: LoadBalancer
   selector:
-    app: points
+    app: cart
   ports:
     - protocol: TCP
       port: 80
@@ -26,19 +26,19 @@ kind: Deployment
 metadata:
   namespace: bk
   labels:
-    app: points
-  name: points
+    app: cart
+  name: cart
 spec:
   selector:
     matchLabels:
-      app: points
+      app: cart
   template:
     metadata:
       labels:
-        app: points
+        app: cart
     spec:
       containers:
-        - image: gcr.io/pgtm-jlong/points
+        - image: gcr.io/pgtm-jlong/cart
           imagePullPolicy: Always
-          name: points
+          name: cart
 
