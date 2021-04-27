@@ -1,5 +1,8 @@
 package booternetes;
 
+import io.github.resilience4j.circuitbreaker.CircuitBreaker;
+import io.github.resilience4j.circuitbreaker.CircuitBreakerConfig;
+import io.github.resilience4j.reactor.circuitbreaker.operator.CircuitBreakerOperator;
 import io.r2dbc.spi.ConnectionFactory;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -25,11 +28,15 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.web.reactive.function.client.WebClientResponseException;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.util.retry.Retry;
 
+import java.time.Duration;
 import java.util.Arrays;
 import java.util.Objects;
+
 
 @SpringBootApplication
 public class CartApplication {
@@ -64,11 +71,16 @@ class CafeInitializer {
 	private final Environment env;
 	private final CoffeeRepository repo;
 
-	@EventListener({ApplicationReadyEvent.class, RefreshScopeRefreshedEvent.class})
+	@EventListener({
+		ApplicationReadyEvent.class,
+		RefreshScopeRefreshedEvent.class
+	})
 	public void refill() {
 		var coffees = env.getProperty("coffees");
 		var deleteAll = repo.deleteAll();
-		var writes = repo.saveAll(Flux.fromStream(Arrays.stream(Objects.requireNonNull(coffees).split(";")).map(name -> new Coffee(null, name.trim()))));
+		var coffeeObjects = Flux
+			.fromStream(Arrays.stream(Objects.requireNonNull(coffees).split(";")).map(name -> new Coffee(null, name.trim())));
+		var writes = repo.saveAll(coffeeObjects);
 		deleteAll.thenMany(writes).subscribe(cafe -> System.out.println("adding " + cafe + '.'));
 	}
 }
@@ -107,7 +119,18 @@ class Order {
 @RequiredArgsConstructor
 class OrderRestController {
 
+	private final CircuitBreaker circuitBreaker = CircuitBreaker.of("dataflow-cb", CircuitBreakerConfig
+		.custom()//
+		.failureRateThreshold(50)//
+		.recordExceptions(WebClientResponseException.InternalServerError.class)//
+		.slidingWindowSize(5)//
+		.waitDurationInOpenState(Duration.ofMillis(1000))//
+		.permittedNumberOfCallsInHalfOpenState(2) //
+		.build()
+	);
+
 	private final OrderRepository orderRepository;
+
 	private final WebClient http;
 
 	@PostMapping("/cart/orders")
@@ -122,6 +145,8 @@ class OrderRestController {
 			.body(Mono.just(order), Order.class)
 			.retrieve()
 			.bodyToMono(String.class)
+			.retryWhen(Retry.backoff(10, Duration.ofSeconds(1)))
+			.transformDeferred(CircuitBreakerOperator.of(this.circuitBreaker))
 			.subscribe(json ->
 				System.out.println("posted the order # " + json)
 			);
