@@ -3,10 +3,10 @@ kind: PersistentVolume
 apiVersion: v1
 metadata:
   namespace: bk
-  name: postgres-pv-volume
+  name: cart-postgres-pv-volume
   labels:
     type: local
-    app: postgres
+    app: cart-postgres
 spec:
   storageClassName: manual
   capacity:
@@ -20,9 +20,9 @@ kind: PersistentVolumeClaim
 apiVersion: v1
 metadata:
   namespace: bk
-  name: postgres-pv-claim
+  name: cart-postgres-pv-claim
   labels:
-    app: postgres
+    app: cart-postgres
 spec:
   storageClassName: manual
   accessModes:
@@ -34,22 +34,22 @@ spec:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: postgres
+  name: cart-postgres
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: postgres
+      app: cart-postgres
   template:
     metadata:
       namespace: bk
       labels:
-        app: postgres
+        app: cart-postgres
     spec:
       containers:
         - image: "postgres:latest"
           imagePullPolicy: IfNotPresent
-          name: postgresdb
+          name: cart-postgres
           env:
             - name: POSTGRES_USER
               value: bk
@@ -57,7 +57,6 @@ spec:
               value: bk
             - name: POSTGRES_PASSWORD
               value: bk
-          #
           ports:
             - containerPort: 5432
 ---
@@ -65,13 +64,13 @@ apiVersion: v1
 kind: Service
 metadata:
   namespace: bk
-  name: postgres
+  name: cart-postgres
   labels:
-    app: postgres
+    app: cart-postgres
 spec:
   type: NodePort
   ports:
     - port: 5432
-      nodePort: 31070
+#      nodePort: 31070
   selector:
-    app: postgres
+    app: cart-postgres
