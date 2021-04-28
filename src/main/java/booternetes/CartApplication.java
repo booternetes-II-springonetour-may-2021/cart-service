@@ -44,8 +44,8 @@ import java.util.Map;
 public class CartApplication {
 
 	public static void main(String[] args) {
-		System.out.println("CWD: " + new File(".").getAbsolutePath());
-		System.getenv().forEach((key, value) -> System.out.println(key + '=' + value));
+//		System.out.println("CWD: " + new File(".").getAbsolutePath());
+//		System.getenv().forEach((key, value) -> System.out.println(key + '=' + value));
 		SpringApplication.run(CartApplication.class, args);
 	}
 
