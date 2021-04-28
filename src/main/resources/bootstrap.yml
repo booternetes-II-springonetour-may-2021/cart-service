@@ -1,6 +1,6 @@
 spring:
   application:
-    name: cart-service
+    name: cart
   cloud:
     kubernetes:
       reload:
