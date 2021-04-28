@@ -4,4 +4,4 @@ metadata:
   name: cart-configmap
 data:
   application.properties: |-
-    cart.coffees=Traction Territory; Decaf by Half; The Jitterbug; Sumatra; English Breakfast Breakup; Rocket Fuel; I Want My Mommy
+    cart.coffees=Traction Territory; Decaf by Half; The Jitterbug; Sumatra; English Breakfast Breakup; Rocket Fuel; I Want My Mommy; Darth Blend; Black as my Soul; Blackhole Blend; Jetblack
