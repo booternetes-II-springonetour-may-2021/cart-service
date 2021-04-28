@@ -44,13 +44,13 @@ import java.util.Objects;
 public class CartApplication {
 
 	public static void main(String[] args) {
-//		var mapOfEnv = System.getenv();
-//		mapOfEnv.keySet().forEach(key -> System.out.println(key + '=' + mapOfEnv.get(key)));
+//		System.getenv().forEach((key, value) -> System.out.println(key + '=' + value));
 		SpringApplication.run(CartApplication.class, args);
 	}
 
 	@Bean
 	ConnectionFactoryInitializer databaseInitializer(ConnectionFactory cf) {
+
 		var populator = new CompositeDatabasePopulator(
 			new ResourceDatabasePopulator(new ClassPathResource("schema.sql")),
 			new ResourceDatabasePopulator(new ClassPathResource("data.sql"))
@@ -66,6 +66,7 @@ public class CartApplication {
 	WebClient webClient(WebClient.Builder builder) {
 		return builder.build();
 	}
+
 }
 
 @Component

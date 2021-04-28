@@ -11,7 +11,7 @@ pwd
 
 export APP_NAME=cart
 export GCR_IMAGE_NAME=gcr.io/${PROJECT_ID}/${APP_NAME}
-mvn clean package spring-boot:build-image
+mvn -DskipTests=true clean package spring-boot:build-image
 
 image_id=$(docker images -q $APP_NAME)
 
