@@ -29,17 +29,14 @@ metadata:
     app: cart
   name: cart
 spec:
-
   selector:
     matchLabels:
       app: cart
   template:
-
     metadata:
       labels:
         app: cart
     spec:
-
       containers:
         - image: gcr.io/pgtm-jlong/cart
           imagePullPolicy: Always

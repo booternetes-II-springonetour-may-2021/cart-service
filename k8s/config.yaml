@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: coffee-configmap
+data:
+  application.properties: |-
+    cart.coffees=Traction Territory; The Jitterbug; Sumatra; English Breakfast Breakup; Rocket Fuel; I Want My Mommy
