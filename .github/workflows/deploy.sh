@@ -21,7 +21,6 @@ docker tag "${image_id}" $GCR_IMAGE_NAME
 echo "pushing ${image_id} to $GCR_IMAGE_NAME "
 docker push $GCR_IMAGE_NAME
 
-#####
 echo "Deploying to Kubernetes"
 kubectl delete deploy/${APP_NAME} -n bk || echo "no deployment to delete..."
 kubectl apply -f ./k8s
