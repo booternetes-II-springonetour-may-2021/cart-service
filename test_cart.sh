@@ -10,4 +10,4 @@ echo "going to put in an order..."
 curl \
   -H "Accept: application/json" \
   -H "Content-Type:application/json" \
-  -X POST --data '{"coffee": "Sumatra", "username":"jlong" , "quantity": 2 }' http://${my_host}/cart/orders
+  -X POST --data '{"coffee": "Sumatra", "username":"jlong" , "quantity": 4 }' http://${my_host}/cart/orders
