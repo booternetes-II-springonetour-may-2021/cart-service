@@ -95,7 +95,7 @@ class CafeInitializer {
 		var writes = repo.saveAll(coffeeObjects);
 		deleteAll
 			.thenMany(writes)
-			.subscribe(cafe -> log.info ("adding " + cafe + '.'));
+			.subscribe(cafe -> log.info(" ...adding " + cafe + '.'));
 	}
 }
 
@@ -164,7 +164,6 @@ class OrderRestController {
 			.then();
 	}
 
-	// must send: { amount: <int>, username : <string> }
 	private Mono<String> send(Order order) {
 		var payload =
 			Map.of("username", order.getUsername(), "amount", order.getQuantity());
