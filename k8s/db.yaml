@@ -1,58 +1,78 @@
+
+
+
+
+
+---
+kind: PersistentVolume
+apiVersion: v1
+metadata:
+  name: postgres-pv-volume
+  labels:
+    type: local
+    app: postgres
+spec:
+  storageClassName: manual
+  capacity:
+    storage: 5Gi
+  accessModes:
+    - ReadWriteMany
+  hostPath:
+    path: "/mnt/data"
+---
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: postgres-pv-claim
+  labels:
+    app: postgres
+spec:
+  storageClassName: manual
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 5Gi
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: cart-mysql-deployment
-  labels:
-    app: cart-mysql
+  name: postgres
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: cart-mysql
+      app: postgres
   template:
     metadata:
       labels:
-        app: cart-mysql
+        app: postgres
     spec:
       containers:
-        - name: cart-mysql
-          image: mysql/mysql-server:latest
+        - image: "postgres:latest"
+          imagePullPolicy: IfNotPresent
+          name: postgresdb
+          env:
+            - name: POSTGRES_USER
+              value: bk
+            - name: PGUSER
+              value: bk
+            - name: POSTGRES_PASSWORD
+              value: bk
+          #
           ports:
-            - containerPort: 3306
-          volumeMounts:
-            - mountPath: "/var/lib/mysql"
-              subPath: "mysql"
-              name: cart-mysql-data
-          envFrom:
-            - secretRef:
-                name: cart-mysql-secrets
-      volumes:
-        - name: cart-mysql-data
-          persistentVolumeClaim:
-            claimName: cart-mysql-data-disk
----
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: cart-mysql-data-disk
-spec:
-  accessModes:
-    - ReadWriteOnce
-  resources:
-    requests:
-      storage: 1Gi
+            - containerPort: 5432
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: cart-mysql-service
-  namespace: default
+  name: postgres
+  labels:
+    app: postgres
 spec:
+  type: NodePort
   ports:
-    - port: 3306
-      protocol: TCP
-      targetPort: 3306
+    - port: 5432
+      nodePort: 31070
   selector:
-    app: cart-mysql
-  type: ClusterIP
+    app: postgres

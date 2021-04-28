@@ -163,7 +163,6 @@ class OrderRestController {
 			.bodyToMono(String.class)
 			.retryWhen(Retry.backoff(10, Duration.ofSeconds(1)))
 			.transformDeferred(CircuitBreakerOperator.of(this.circuitBreaker));
-
 	}
 }
 

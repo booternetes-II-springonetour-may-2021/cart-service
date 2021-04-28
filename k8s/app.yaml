@@ -1,66 +1,47 @@
----
 apiVersion: v1
-kind: ConfigMap
+kind: Namespace
 metadata:
-  name: cart-config
-  labels:
-    app: cart
-data:
-  SPRING_PROFILES_ACTIVE: cloud
-
----
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: cart
-spec:
-  selector:
-    matchLabels:
-      app: cart
-  template:
-    metadata:
-      labels:
-        app: cart
-    spec:
-      containers:
-        - name: cart
-          env:
-            - name: SPRING_R2DBC_USERNAME
-              valueFrom:
-                secretKeyRef:
-                  key: MYSQL_USER
-                  name: cart-mysql-secrets
-            - name: SPRING_R2DBC_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  key: MYSQL_PASSWORD
-                  name: cart-mysql-secrets
-          envFrom:
-            - configMapRef:
-                name: cart-config
-          image: gcr.io/pgtm-jlong/cart
-          imagePullPolicy: Always
-          readinessProbe:
-            httpGet:
-              port: 8080
-              path: /actuator/health/readiness
-          livenessProbe:
-            httpGet:
-              port: 8080
-              path: /actuator/health/liveness
-          ports:
-            - containerPort: 8080
+  name: bk
 
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: cart
+  name: cart-service
   namespace: bk
+  labels:
+    app: cart
 spec:
-  ports:
-    - port: 80
-      targetPort: 8080
-  selector:
-    app: app
   type: LoadBalancer
+  selector:
+    app: cart
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 8080
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  namespace: bk
+  labels:
+    app: cart
+  name: cart
+spec:
+
+  selector:
+    matchLabels:
+      app: cart
+  template:
+
+    metadata:
+      labels:
+        app: cart
+    spec:
+
+      containers:
+        - image: gcr.io/pgtm-jlong/cart
+          imagePullPolicy: Always
+          name: cart
+
