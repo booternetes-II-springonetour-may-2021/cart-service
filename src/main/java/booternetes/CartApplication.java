@@ -8,6 +8,7 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.log4j.Log4j2;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
@@ -38,6 +39,7 @@ import java.time.Duration;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Stream;
 
 
 @SpringBootApplication
@@ -69,6 +71,7 @@ public class CartApplication {
 
 }
 
+@Log4j2
 @Component
 @RequiredArgsConstructor
 class CafeInitializer {
@@ -81,12 +84,18 @@ class CafeInitializer {
 		RefreshScopeRefreshedEvent.class
 	})
 	public void refill() {
-		var coffees = env.getProperty("cart.coffees");
+		var coffees = env.getProperty("cart.coffees", "");
+		log.info("cart.coffees=" + coffees);
 		var deleteAll = repo.deleteAll();
-		var coffeeObjects = Flux
-			.fromStream(Arrays.stream(Objects.requireNonNull(coffees).split(";")).map(name -> new Coffee(null, name.trim())));
+		var coffeesStream = Arrays
+			.stream(coffees.split(";"))
+			.filter(c -> c != null && !c.trim().equalsIgnoreCase(""))
+			.map(name -> new Coffee(null, name.trim()));
+		var coffeeObjects = Flux.fromStream(coffeesStream);
 		var writes = repo.saveAll(coffeeObjects);
-		deleteAll.thenMany(writes).subscribe(cafe -> System.out.println("adding " + cafe + '.'));
+		deleteAll
+			.thenMany(writes)
+			.subscribe(cafe -> System.out.println("Adding " + cafe + '.'));
 	}
 }
 
@@ -101,6 +110,7 @@ interface OrderRepository extends ReactiveCrudRepository<Order, Integer> {
 @AllArgsConstructor
 @NoArgsConstructor
 class Coffee {
+
 	@Id
 	private Integer id;
 	private String name;
