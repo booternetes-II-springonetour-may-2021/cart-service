@@ -1,12 +1,8 @@
-
-
-
-
-
 ---
 kind: PersistentVolume
 apiVersion: v1
 metadata:
+  namespace: bk
   name: postgres-pv-volume
   labels:
     type: local
@@ -23,6 +19,7 @@ spec:
 kind: PersistentVolumeClaim
 apiVersion: v1
 metadata:
+  namespace: bk
   name: postgres-pv-claim
   labels:
     app: postgres
@@ -45,6 +42,7 @@ spec:
       app: postgres
   template:
     metadata:
+      namespace: bk
       labels:
         app: postgres
     spec:
@@ -66,6 +64,7 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
+  namespace: bk
   name: postgres
   labels:
     app: postgres
