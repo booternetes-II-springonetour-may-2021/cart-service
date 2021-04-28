@@ -95,7 +95,7 @@ class CafeInitializer {
 		var writes = repo.saveAll(coffeeObjects);
 		deleteAll
 			.thenMany(writes)
-			.subscribe(cafe -> System.out.println("Adding " + cafe + '.'));
+			.subscribe(cafe -> log.info ("adding " + cafe + '.'));
 	}
 }
 
