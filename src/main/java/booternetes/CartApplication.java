@@ -39,16 +39,13 @@ import java.io.File;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.Map;
-import java.util.Objects;
-import java.util.stream.Stream;
-
 
 @SpringBootApplication
 public class CartApplication {
 
 	public static void main(String[] args) {
-		System.out.println( "CWD: " +new File(".").getAbsolutePath());
- 	System.getenv().forEach((key, value) -> System.out.println(key + '=' + value));
+		System.out.println("CWD: " + new File(".").getAbsolutePath());
+		System.getenv().forEach((key, value) -> System.out.println(key + '=' + value));
 		SpringApplication.run(CartApplication.class, args);
 	}
 
