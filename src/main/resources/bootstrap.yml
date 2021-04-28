@@ -11,4 +11,4 @@ spring:
         monitoring-config-maps: true
       config:
         sources:
-          - name: ${spring.application.name}-configmap
+          - name: ${spring.application.name}
