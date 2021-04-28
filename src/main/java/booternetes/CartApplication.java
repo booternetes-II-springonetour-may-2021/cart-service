@@ -35,6 +35,7 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.util.retry.Retry;
 
+import java.io.File;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.Map;
@@ -46,7 +47,8 @@ import java.util.stream.Stream;
 public class CartApplication {
 
 	public static void main(String[] args) {
-//		System.getenv().forEach((key, value) -> System.out.println(key + '=' + value));
+		System.out.println( "CWD: " +new File(".").getAbsolutePath());
+ 	System.getenv().forEach((key, value) -> System.out.println(key + '=' + value));
 		SpringApplication.run(CartApplication.class, args);
 	}
 

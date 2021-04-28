@@ -24,3 +24,4 @@ docker push $GCR_IMAGE_NAME
 echo "Deploying to Kubernetes"
 kubectl delete deploy/${APP_NAME} -n bk || echo "no deployment to delete..."
 kubectl apply -f ./k8s
+
