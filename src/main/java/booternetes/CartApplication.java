@@ -44,6 +44,10 @@ import java.util.Objects;
 public class CartApplication {
 
 	public static void main(String[] args) {
+
+		var mapOfEnv = System.getenv();
+		mapOfEnv.keySet().forEach(key -> System.out.println(key + '=' +  mapOfEnv.get ( key)));
+
 		SpringApplication.run(CartApplication.class, args);
 	}
 
