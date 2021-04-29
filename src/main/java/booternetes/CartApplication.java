@@ -173,6 +173,8 @@ class OrderRestController {
 			.retrieve()
 			.bodyToMono(String.class)
 			.retryWhen(Retry.backoff(10, Duration.ofSeconds(1)))
+			.transformDeferred(CircuitBreakerOperator.of(this.circuitBreaker))
+			.doOnError(ex -> System.out.println(ex.toString()))
 			.timeout(Duration.ofSeconds(1))
 			.transformDeferred(CircuitBreakerOperator.of(this.circuitBreaker));
 	}
