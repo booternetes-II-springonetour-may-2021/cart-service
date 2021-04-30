@@ -1,8 +1,5 @@
 package booternetes;
 
-import io.github.resilience4j.ratelimiter.RateLimiter;
-import io.github.resilience4j.ratelimiter.RateLimiterConfig;
-import io.github.resilience4j.reactor.ratelimiter.operator.RateLimiterOperator;
 import io.r2dbc.spi.ConnectionFactory;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -27,7 +24,6 @@ import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
-import java.time.Duration;
 import java.util.Map;
 
 @SpringBootApplication
@@ -94,14 +90,6 @@ class OrderRestController {
 
 	private final String cartPointsSinkUrl;
 	private final OrderRepository orderRepository;
-	private final RateLimiter rateLimiter = RateLimiter.of("dataflow-rl",
-		RateLimiterConfig
-			.custom()
-			.limitForPeriod(10)
-			.limitRefreshPeriod(Duration.ofSeconds(1))
-			.timeoutDuration(Duration.ofMillis(25))
-			.build()
-	);
 	private final WebClient http;
 
 	OrderRestController(@Value("${cart.points-sink-url}") String cartPointsSinkUrl,
@@ -129,13 +117,7 @@ class OrderRestController {
 			.uri(this.cartPointsSinkUrl)
 			.body(Mono.just(payload), Map.class)
 			.retrieve()
-			.bodyToMono(String.class)
-			.doFinally(signal -> System.out.println("signal :" + signal.toString()))
-			.doOnError(ex -> System.out.println("OOPS! " + ex.toString()))
-			.onErrorResume(ex -> Mono.empty())
-			// .retryWhen(Retry.backoff(5, Duration.ofSeconds(1)))
-			// .timeout(Duration.ofSeconds(10))
-			.transformDeferred(RateLimiterOperator.of(this.rateLimiter));
+			.bodyToMono(String.class);
 	}
 }
 
