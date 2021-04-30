@@ -49,12 +49,18 @@
         <dependency>
             <version>${resilience4j.version}</version>
             <groupId>io.github.resilience4j</groupId>
-            <artifactId>resilience4j-reactor</artifactId>
+            <artifactId>resilience4j-ratelimiter</artifactId>
         </dependency>
         <dependency>
-            <groupId>org.springframework.cloud</groupId>
-            <artifactId>spring-cloud-starter-kubernetes-fabric8-config</artifactId>
+            <version>${resilience4j.version}</version>
+            <groupId>io.github.resilience4j</groupId>
+            <artifactId>resilience4j-reactor</artifactId>
         </dependency>
+       <!-- <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-kubernetes-fabric8-config
+            </artifactId>
+        </dependency>-->
         <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>

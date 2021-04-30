@@ -2,7 +2,10 @@ package booternetes;
 
 import io.github.resilience4j.circuitbreaker.CircuitBreaker;
 import io.github.resilience4j.circuitbreaker.CircuitBreakerConfig;
+import io.github.resilience4j.ratelimiter.RateLimiter;
+import io.github.resilience4j.ratelimiter.RateLimiterConfig;
 import io.github.resilience4j.reactor.circuitbreaker.operator.CircuitBreakerOperator;
+import io.github.resilience4j.reactor.ratelimiter.operator.RateLimiterOperator;
 import io.r2dbc.spi.ConnectionFactory;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -67,6 +70,7 @@ public class CartApplication {
 
 }
 
+// MG
 @Log4j2
 @Component
 @RequiredArgsConstructor
@@ -95,12 +99,16 @@ class CafeInitializer {
 	}
 }
 
+
+// JL
 interface CoffeeRepository extends ReactiveCrudRepository<Coffee, Integer> {
 }
 
+// JL
 interface OrderRepository extends ReactiveCrudRepository<Order, Integer> {
 }
 
+// JL
 @Data
 @Table("cafe")
 @AllArgsConstructor
@@ -112,7 +120,7 @@ class Coffee {
 	private String name;
 }
 
-
+// JL
 @Data
 @Table("cafe_orders")
 @AllArgsConstructor
@@ -125,13 +133,28 @@ class Order {
 	private int quantity;
 }
 
-
+// JL
 @RestController
 class OrderRestController {
 
 	private final String cartPointsSinkUrl;
 
-	private final CircuitBreaker circuitBreaker = CircuitBreaker.of("dataflow-cb", CircuitBreakerConfig
+
+	private final OrderRepository orderRepository;
+	// MH <
+
+	//https://github.com/reactive-spring-book/orchestration/blob/master/client/src/main/java/rsb/orchestration/resilience4j/RateLimiterClient.java
+	private final RateLimiter rateLimiter = RateLimiter.of("dataflow-rl",
+		RateLimiterConfig//
+			.custom() //
+			.limitForPeriod(10)// <1>
+			.limitRefreshPeriod(Duration.ofSeconds(1))// <2>
+			.timeoutDuration(Duration.ofMillis(25))//
+			.build()
+	);
+
+
+/*	private final CircuitBreaker circuitBreaker = CircuitBreaker.of("dataflow-cb", CircuitBreakerConfig
 		.custom()//
 		.failureRateThreshold(50)//
 		.recordExceptions(WebClientResponseException.InternalServerError.class)//
@@ -139,8 +162,9 @@ class OrderRestController {
 		.waitDurationInOpenState(Duration.ofMillis(1000))//
 		.permittedNumberOfCallsInHalfOpenState(2) //
 		.build()
-	);
-	private final OrderRepository orderRepository;
+	);*/
+	// MH >
+
 	private final WebClient http;
 
 	OrderRestController(
@@ -170,13 +194,26 @@ class OrderRestController {
 			.body(Mono.just(payload), Map.class)
 			.retrieve()
 			.bodyToMono(String.class)
-			//	.retryWhen(Retry.backoff(5, Duration.ofSeconds(1)))
-			.transformDeferred(CircuitBreakerOperator.of(this.circuitBreaker))
-//  .timeout(Duration.ofSeconds(1))
-			.doOnError(ex -> System.out.println("OOPS! " + ex.toString()));
+
+			// step 0: error handling
+			.doFinally(signal -> System.out.println("signal :" + signal.toString()))
+			.doOnError(ex -> System.out.println("OOPS! " + ex.toString()))
+			.onErrorResume(ex -> Mono.empty())
+
+			// step 1:
+			// .retryWhen(Retry.backoff(5, Duration.ofSeconds(1)))
+
+			// step 2:
+			// .timeout(Duration.ofSeconds(10))
+
+			// step 3:
+			.transformDeferred(RateLimiterOperator.of(this.rateLimiter))
+			;
+		// > MH
 	}
 }
 
+// JL
 @RestController
 @RequiredArgsConstructor
 class CoffeeRestController {
