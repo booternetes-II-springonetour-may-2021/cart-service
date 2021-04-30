@@ -42,28 +42,28 @@ import java.util.Map;
 @SpringBootApplication
 public class CartApplication {
 
-    public static void main(String[] args) {
-        SpringApplication.run(CartApplication.class, args);
-    }
+	public static void main(String[] args) {
+		SpringApplication.run(CartApplication.class, args);
+	}
 
-    @Bean
-    ConnectionFactoryInitializer databaseInitializer(ConnectionFactory cf) {
+	@Bean
+	ConnectionFactoryInitializer databaseInitializer(ConnectionFactory cf) {
 
-        var populator = new CompositeDatabasePopulator(
-                new ResourceDatabasePopulator(new ClassPathResource("schema.sql")),
-                new ResourceDatabasePopulator(new ClassPathResource("data.sql"))
-        );
+		var populator = new CompositeDatabasePopulator(
+			new ResourceDatabasePopulator(new ClassPathResource("schema.sql")),
+			new ResourceDatabasePopulator(new ClassPathResource("data.sql"))
+		);
 
-        var initializer = new ConnectionFactoryInitializer();
-        initializer.setConnectionFactory(cf);
-        initializer.setDatabasePopulator(populator);
-        return initializer;
-    }
+		var initializer = new ConnectionFactoryInitializer();
+		initializer.setConnectionFactory(cf);
+		initializer.setDatabasePopulator(populator);
+		return initializer;
+	}
 
-    @Bean
-    WebClient webClient(WebClient.Builder builder) {
-        return builder.build();
-    }
+	@Bean
+	WebClient webClient(WebClient.Builder builder) {
+		return builder.build();
+	}
 
 }
 
@@ -72,27 +72,27 @@ public class CartApplication {
 @RequiredArgsConstructor
 class CafeInitializer {
 
-    private final Environment env;
-    private final CoffeeRepository repo;
+	private final Environment env;
+	private final CoffeeRepository repo;
 
-    @EventListener({
-            ApplicationReadyEvent.class,
-            RefreshScopeRefreshedEvent.class
-    })
-    public void refill() {
-        var coffees = env.getProperty("cart.coffees", "");
-        log.info("cart.coffees=" + coffees);
-        var deleteAll = repo.deleteAll();
-        var coffeesStream = Arrays
-                .stream(coffees.split(";"))
-                .filter(c -> c != null && !c.trim().equalsIgnoreCase(""))
-                .map(name -> new Coffee(null, name.trim()));
-        var coffeeObjects = Flux.fromStream(coffeesStream);
-        var writes = repo.saveAll(coffeeObjects);
-        deleteAll
-                .thenMany(writes)
-                .subscribe(cafe -> log.info(" ...adding " + cafe + '.'));
-    }
+	@EventListener({
+		ApplicationReadyEvent.class,
+		RefreshScopeRefreshedEvent.class
+	})
+	public void refill() {
+		var coffees = env.getProperty("cart.coffees", "");
+		log.info("cart.coffees=" + coffees);
+		var deleteAll = repo.deleteAll();
+		var coffeesStream = Arrays
+			.stream(coffees.split(";"))
+			.filter(c -> c != null && !c.trim().equalsIgnoreCase(""))
+			.map(name -> new Coffee(null, name.trim()));
+		var coffeeObjects = Flux.fromStream(coffeesStream);
+		var writes = repo.saveAll(coffeeObjects);
+		deleteAll
+			.thenMany(writes)
+			.subscribe(cafe -> log.info(" ...adding " + cafe + '.'));
+	}
 }
 
 interface CoffeeRepository extends ReactiveCrudRepository<Coffee, Integer> {
@@ -107,9 +107,9 @@ interface OrderRepository extends ReactiveCrudRepository<Order, Integer> {
 @NoArgsConstructor
 class Coffee {
 
-    @Id
-    private Integer id;
-    private String name;
+	@Id
+	private Integer id;
+	private String name;
 }
 
 
@@ -118,74 +118,74 @@ class Coffee {
 @AllArgsConstructor
 @NoArgsConstructor
 class Order {
-    @Id
-    private Integer id;
-    private String coffee;
-    private String username;
-    private int quantity;
+	@Id
+	private Integer id;
+	private String coffee;
+	private String username;
+	private int quantity;
 }
 
 
 @RestController
 class OrderRestController {
 
-    private final String cartPointsSinkUrl;
+	private final String cartPointsSinkUrl;
 
-    private final CircuitBreaker circuitBreaker = CircuitBreaker.of("dataflow-cb", CircuitBreakerConfig
-            .custom()//
-            .failureRateThreshold(50)//
-            .recordExceptions(WebClientResponseException.InternalServerError.class)//
-            .slidingWindowSize(5)//
-            .waitDurationInOpenState(Duration.ofMillis(1000))//
-            .permittedNumberOfCallsInHalfOpenState(2) //
-            .build()
-    );
-    private final OrderRepository orderRepository;
-    private final WebClient http;
+	private final CircuitBreaker circuitBreaker = CircuitBreaker.of("dataflow-cb", CircuitBreakerConfig
+		.custom()//
+		.failureRateThreshold(50)//
+		.recordExceptions(WebClientResponseException.InternalServerError.class)//
+		.slidingWindowSize(5)//
+		.waitDurationInOpenState(Duration.ofMillis(1000))//
+		.permittedNumberOfCallsInHalfOpenState(2) //
+		.build()
+	);
+	private final OrderRepository orderRepository;
+	private final WebClient http;
 
-    OrderRestController(
-            @Value("${cart.points-sink-url}") String cartPointsSinkUrl,
-            OrderRepository orderRepository,
-            WebClient http) {
-        this.cartPointsSinkUrl = cartPointsSinkUrl;
-        this.orderRepository = orderRepository;
-        this.http = http;
-    }
+	OrderRestController(
+		@Value("${cart.points-sink-url}") String cartPointsSinkUrl,
+		OrderRepository orderRepository,
+		WebClient http) {
+		this.cartPointsSinkUrl = cartPointsSinkUrl;
+		this.orderRepository = orderRepository;
+		this.http = http;
+	}
 
-    @PostMapping("/cart/orders")
-    Mono<Void> placeOrder(@RequestBody Order order) {
-        return this.orderRepository
-                .save(order)
-                .flatMap(this::send)
-                .doOnNext(System.out::println)
-                .then();
-    }
+	@PostMapping("/cart/orders")
+	Mono<Void> placeOrder(@RequestBody Order order) {
+		return this.orderRepository
+			.save(order)
+			.flatMap(this::send)
+			.doOnNext(System.out::println)
+			.then();
+	}
 
-    private Mono<String> send(Order order) {
-        var payload =
-                Map.of("username", order.getUsername(), "amount", order.getQuantity());
-        return this.http
-                .post()
-                .uri(this.cartPointsSinkUrl)
-                .body(Mono.just(payload), Map.class)
-                .retrieve()
-                .bodyToMono(String.class)
-                .retryWhen(Retry.backoff( 5 , Duration.ofSeconds(1)))
-                .transformDeferred(CircuitBreakerOperator.of(this.circuitBreaker))
-                .doOnError(ex -> System.out.println(ex.toString()))
-                .timeout(Duration.ofSeconds(1));
-    }
+	private Mono<String> send(Order order) {
+		var payload =
+			Map.of("username", order.getUsername(), "amount", order.getQuantity());
+		return this.http
+			.post()
+			.uri(this.cartPointsSinkUrl)
+			.body(Mono.just(payload), Map.class)
+			.retrieve()
+			.bodyToMono(String.class)
+			//	.retryWhen(Retry.backoff(5, Duration.ofSeconds(1)))
+			.transformDeferred(CircuitBreakerOperator.of(this.circuitBreaker))
+//  .timeout(Duration.ofSeconds(1))
+			.doOnError(ex -> System.out.println("OOPS! " + ex.toString()));
+	}
 }
 
 @RestController
 @RequiredArgsConstructor
 class CoffeeRestController {
 
-    private final CoffeeRepository cafe;
+	private final CoffeeRepository cafe;
 
-    @GetMapping("/cart/coffees")
-    Flux<Coffee> get() {
-        return cafe.findAll();
-    }
+	@GetMapping("/cart/coffees")
+	Flux<Coffee> get() {
+		return cafe.findAll();
+	}
 
 }

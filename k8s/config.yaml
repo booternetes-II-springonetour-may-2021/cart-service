@@ -4,4 +4,4 @@ metadata:
   name: cart-configmap
 data:
   application.properties: |-
-    cart.coffees=The Procaffeinator; Al Cappuccino;Brew Carey; Bean Affleck;Ariana Grande; Traction Territory; Decaf by Half; The Jitterbug; Sumatra; English Breakfast Breakup; Rocket Fuel; I Want My Mommy; Darth Blend; Black as my Soul; Blackhole Blend; Jetblack; Sleep Be Gone!
+    cart.coffees=The Procaffeinator; Al Cappuccino; Brew Carey; Bean Affleck; Ariana Grande; Traction Territory; Decaf by Half; The Jitterbug; Sumatra; English Breakfast Breakup; Rocket Fuel; I Want My Mommy; Darth Blend; Black as my Soul; Blackhole Blend; Jetblack; Sleep Be Gone!
