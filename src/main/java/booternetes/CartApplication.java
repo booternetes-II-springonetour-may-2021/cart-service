@@ -35,7 +35,6 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.util.retry.Retry;
 
-import java.io.File;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.Map;
@@ -171,7 +170,7 @@ class OrderRestController {
                 .body(Mono.just(payload), Map.class)
                 .retrieve()
                 .bodyToMono(String.class)
-                .retryWhen(Retry.backoff(10, Duration.ofSeconds(1)))
+                .retryWhen(Retry.backoff( 5 , Duration.ofSeconds(1)))
                 .transformDeferred(CircuitBreakerOperator.of(this.circuitBreaker))
                 .doOnError(ex -> System.out.println(ex.toString()))
                 .timeout(Duration.ofSeconds(1));
