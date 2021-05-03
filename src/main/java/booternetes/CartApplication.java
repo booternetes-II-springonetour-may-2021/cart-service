@@ -26,6 +26,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.util.retry.Retry;
 
 import java.time.Duration;
 import java.util.Map;
@@ -33,28 +34,28 @@ import java.util.Map;
 @SpringBootApplication
 public class CartApplication {
 
-	public static void main(String[] args) {
-		SpringApplication.run(CartApplication.class, args);
-	}
+    public static void main(String[] args) {
+        SpringApplication.run(CartApplication.class, args);
+    }
 
-	@Bean
-	ConnectionFactoryInitializer databaseInitializer(ConnectionFactory cf) {
+    @Bean
+    ConnectionFactoryInitializer databaseInitializer(ConnectionFactory cf) {
 
-		var populator = new CompositeDatabasePopulator(
-			new ResourceDatabasePopulator(new ClassPathResource("schema.sql")),
-			new ResourceDatabasePopulator(new ClassPathResource("data.sql"))
-		);
+        var populator = new CompositeDatabasePopulator(
+                new ResourceDatabasePopulator(new ClassPathResource("schema.sql")),
+                new ResourceDatabasePopulator(new ClassPathResource("data.sql"))
+        );
 
-		var initializer = new ConnectionFactoryInitializer();
-		initializer.setConnectionFactory(cf);
-		initializer.setDatabasePopulator(populator);
-		return initializer;
-	}
+        var initializer = new ConnectionFactoryInitializer();
+        initializer.setConnectionFactory(cf);
+        initializer.setDatabasePopulator(populator);
+        return initializer;
+    }
 
-	@Bean
-	WebClient webClient(WebClient.Builder builder) {
-		return builder.build();
-	}
+    @Bean
+    WebClient webClient(WebClient.Builder builder) {
+        return builder.build();
+    }
 
 }
 
@@ -70,9 +71,9 @@ interface OrderRepository extends ReactiveCrudRepository<Order, Integer> {
 @NoArgsConstructor
 class Coffee {
 
-	@Id
-	private Integer id;
-	private String name;
+    @Id
+    private Integer id;
+    private String name;
 }
 
 
@@ -82,71 +83,88 @@ class Coffee {
 @NoArgsConstructor
 class Order {
 
-	@Id
-	private Integer id;
-	private String coffee;
-	private String username;
-	private int quantity;
+    @Id
+    private Integer id;
+    private String coffee;
+    private String username;
+    private int quantity;
 }
 
 @RestController
 class OrderRestController {
 
-	private final String cartPointsSinkUrl;
-	private final OrderRepository orderRepository;
-	private final RateLimiter rateLimiter = RateLimiter.of("dataflow-rl",
-		RateLimiterConfig
-			.custom()
-			.limitForPeriod(10)
-			.limitRefreshPeriod(Duration.ofSeconds(1))
-			.timeoutDuration(Duration.ofMillis(25))
-			.build()
-	);
-	private final WebClient http;
+    private final String cartPointsSinkUrl;
+    private final OrderRepository orderRepository;
+    private final RateLimiter rateLimiter = RateLimiter.of("dataflow-rl",
+            RateLimiterConfig
+                    .custom()
+                    .limitRefreshPeriod(Duration.ofSeconds(1))
+                    .limitForPeriod(5)
+                    .timeoutDuration(Duration.ofMillis(25))
+                    .build()
+    );
 
-	OrderRestController(@Value("${cart.points-sink-url}") String cartPointsSinkUrl,
-																					OrderRepository orderRepository,
-																					WebClient http) {
-		this.cartPointsSinkUrl = cartPointsSinkUrl;
-		this.orderRepository = orderRepository;
-		this.http = http;
-	}
+    private final WebClient http;
 
-	@PostMapping("/cart/orders")
-	Mono<Void> placeOrder(@RequestBody Order order) {
-		return this.orderRepository
-			.save(order)
-			.flatMap(this::send)
-			.doOnNext(System.out::println)
-			.then();
-	}
+    OrderRestController(@Value("${cart.points-sink-url}") String cartPointsSinkUrl,
+                        OrderRepository orderRepository,
+                        WebClient http) {
+        this.cartPointsSinkUrl = cartPointsSinkUrl;
+        this.orderRepository = orderRepository;
+        this.http = http;
+    }
 
-	private Mono<String> send(Order order) {
-		var payload =
-			Map.of("username", order.getUsername(), "amount", order.getQuantity());
-		return this.http
-			.post()
-			.uri(this.cartPointsSinkUrl)
-			.body(Mono.just(payload), Map.class)
-			.retrieve()
-			.bodyToMono(String.class)
-			.doFinally(signal -> System.out.println("signal :" + signal.toString()))
-			.doOnError(ex -> System.out.println("OOPS! " + ex.toString()))
-			.onErrorResume(ex -> Mono.empty())
-			// .retryWhen(Retry.backoff(5, Duration.ofSeconds(1)))
-			// .timeout(Duration.ofSeconds(10))
-			.transformDeferred(RateLimiterOperator.of(this.rateLimiter));
-	}
+    @PostMapping("/cart/orders")
+    Mono<Void> placeOrder(@RequestBody Order order) {
+        // Everything but rate limited
+//        return this.orderRepository
+//                .save(order)
+//                .flatMap(this::send)
+//                .doOnNext(System.out::println)
+//                .then();
+
+        // Limit THIS! 😆
+        return this.orderRepository
+                .saveAll(Flux.range(0, 10).map(l -> order))
+                .flatMap(this::send)
+                .onErrorResume(ex -> {
+                    System.out.println("Error: " + ex.getLocalizedMessage());
+                    return Mono.empty();
+                })
+                .then();
+    }
+
+    private Mono<String> send(Order order) {
+        var payload =
+                Map.of("username", order.getUsername(), "amount", order.getQuantity());
+
+        return this.http
+                .post()
+                .uri(this.cartPointsSinkUrl)
+                .body(Mono.just(payload), Map.class)
+                .retrieve()
+                .bodyToMono(String.class)
+                .doFinally(signal -> System.out.println("Signal: " + signal.name()))
+                .doOnCancel(() -> System.out.println("Operation cancelled"))
+
+//                .timeout(Duration.ofSeconds(6))
+//                .onErrorResume(ex -> Mono.just("Error: " + ex.getLocalizedMessage()
+//                        + ", execution resumed!"));
+
+//			 .retryWhen(Retry.backoff(5, Duration.ofSeconds(1)));
+
+                .transformDeferred(RateLimiterOperator.of(this.rateLimiter));
+    }
 }
 
 @RestController
 @RequiredArgsConstructor
 class CoffeeRestController {
 
-	private final CoffeeRepository cafe;
+    private final CoffeeRepository cafe;
 
-	@GetMapping("/cart/coffees")
-	Flux<Coffee> get() {
-		return cafe.findAll();
-	}
+    @GetMapping("/cart/coffees")
+    Flux<Coffee> get() {
+        return cafe.findAll();
+    }
 }
