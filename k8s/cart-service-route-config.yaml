@@ -1,0 +1,37 @@
+apiVersion: "tanzu.vmware.com/v1"
+kind: SpringCloudGatewayRouteConfig
+metadata:
+  name: cart-service-route-config
+spec:
+  service:
+    name: cart-service
+  routes:
+    - predicates:
+        - Path=/api/cart/coffees
+        - Method=GET
+      filters:
+        - RateLimit=2,10s
+      tags:
+        - "orders"
+    - predicates:
+        - Path=/api/cart/orders
+        - Method=POST
+      filters:
+        - RateLimit=2,10s
+      tags:
+        - "orders"
+      model:
+        requestBody:
+          description: Manage orders
+          content:
+            'application/json':
+              schema:
+                type: object
+                description: Order schema
+                properties:
+                  coffee:
+                    type: string
+                  username:
+                    type: string
+                  quantity:
+                    type: int
